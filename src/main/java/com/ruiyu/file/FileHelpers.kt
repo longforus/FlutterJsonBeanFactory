@@ -111,12 +111,12 @@ object FileHelpers {
     /**
      * 自动生成单个文件的辅助文件
      */
-    private fun generateDartEntityHelper(project: Project, packageName: String, helperClassGeneratorInfos: HelperFileGeneratorInfo?) {
+    private fun generateDartEntityHelper(project: Project, packageName: String,import:String, helperClassGeneratorInfos: HelperFileGeneratorInfo?) {
 //        val pubSpecConfig = getPubSpecConfig(project)
         val content = StringBuilder()
         //导包
         //辅助主类的包名
-        content.append(packageName)
+        content.append(import)
         content.append("\n")
         //所有字段
        /* val allFields = helperClassGeneratorInfos?.classes?.flatMap {
@@ -140,16 +140,16 @@ object FileHelpers {
     /**
      * 自动生成所有文件的辅助文件
      */
-    fun generateAllDartEntityHelper(project: Project, allClass: List<Pair<HelperFileGeneratorInfo, String>>) {
+    fun generateAllDartEntityHelper(project: Project, allClass: List<AllEntityInfoBean>) {
         allClass.forEach {
-            generateDartEntityHelper(project, it.second, it.first)
+            generateDartEntityHelper(project, it.import,it.import+it.contentImport, it.info)
         }
     }
 
     /**
      * 获取所有符合生成的file
      */
-    fun getAllEntityFiles(project: Project): List<Pair<HelperFileGeneratorInfo, String>> {
+    fun getAllEntityFiles(project: Project): List<AllEntityInfoBean> {
         val pubSpecConfig = getPubSpecConfig(project)
         val psiManager = PsiManager.getInstance(project)
         return FilenameIndex.getAllFilesByExt(project, "dart").filter {
@@ -164,7 +164,12 @@ object FileHelpers {
             } else {
                 //包名
                 val packageName = (it.path).substringAfter("${project.name}/lib/")
-                dartFileHelperClassGeneratorInfo to "import 'package:${pubSpecConfig?.name}/${packageName}';"
+                val importPart = "import 'package:${pubSpecConfig?.name}/${packageName}';"
+                val infoBean = AllEntityInfoBean(dartFileHelperClassGeneratorInfo,importPart)
+                if (dartFileHelperClassGeneratorInfo.classes.any { it.typeName.isNotEmpty() }){
+                    infoBean.contentImport="\nimport 'package:${pubSpecConfig?.name}/generated/json/base/json_convert_content.dart';"
+                }
+                infoBean
             }
 
         }

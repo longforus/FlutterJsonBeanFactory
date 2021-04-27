@@ -1,6 +1,8 @@
 package com.ruiyu.dart_to_helper.node
 
+import com.intellij.openapi.components.ServiceManager
 import com.ruiyu.jsontodart.utils.*
+import com.ruiyu.setting.Settings
 import com.ruiyu.utils.toLowerCaseFirstOne
 
 
@@ -17,6 +19,7 @@ class HelperFileGeneratorInfo(
 class HelperClassGeneratorInfo {
     //协助的类名
     lateinit var className: String
+    var typeName:String = ""
     val fields: MutableList<Filed> = mutableListOf()
 
 
@@ -26,6 +29,36 @@ class HelperClassGeneratorInfo {
         })
     }
 
+
+//    baseBeanFromJson<T>(BaseBean<T> data, Map<String, dynamic> json) {
+//        if (json['code'] != null) {
+//            data.code = json['code'] is String
+//            ? int.tryParse(json['code'])
+//            : json['code'].toInt();
+//        }
+//        if (json['message'] != null) {
+//            data.message = json['message'].toString();
+//        }
+//        if (json['data'] != null) {
+//            data.data = JsonConvert.fromJsonAsT<T>(json['data']);
+//        }
+//        return data;
+//    }
+
+// baseBeanFromJson(BaseBean data, Map<String, dynamic> json) {
+//   if (json['code'] != null) {
+//     data.code = json['code'] is String
+//         ? int.tryParse(json['code'])
+//         : json['code'].toInt();
+//   }
+//   if (json['message'] != null) {
+//     data.message = json['message'].toString();
+//   }
+//   if (json['data'] != null) {
+//     data.data = T().fromJson(json['data']);
+//   }
+//   return data;
+// }
 
     override fun toString(): String {
         val sb = StringBuffer()
@@ -40,7 +73,7 @@ class HelperClassGeneratorInfo {
     private fun jsonParseFunc(): String {
         val sb = StringBuffer();
         sb.append("\n")
-        sb.append("${className.toLowerCaseFirstOne()}FromJson(${className} data, Map<String, dynamic> json) {\n")
+        sb.append("${className.toLowerCaseFirstOne()}FromJson$typeName(${className}${typeName} data, Map<String, dynamic> json) {\n")
         fields.forEach { k ->
             //如果deserialize不是false,那么就解析,否则不解析
             if (k.getValueByName<Boolean>("deserialize") != false) {
@@ -93,8 +126,16 @@ class HelperClassGeneratorInfo {
                         "\t\tdata.$name = (json['$getJsonName'] as List).map((v) => ${listSubType}().fromJson(v)).toList();\n" +
                         "\t}"
             }
+            "<$type>"==typeName->{
+                //  if (json['data'] != null) {
+                //    data.data = JsonConvert.fromJsonAsT<T>(json['data']);
+                //    data.data = T().fromJson(json['data']);
+                //  }
+                "if (json['$getJsonName'] != null) {\n\t\tdata.$name = JsonConvert.fromJsonAsT<${type.replace("?","")}>(json['$getJsonName']);\n\t}"
+            }
             else -> // class
                 "if (json['$getJsonName'] != null) {\n\t\tdata.$name = ${type.replace("?","")}().fromJson(json['$getJsonName']);\n\t}"
+
         }
     }
 

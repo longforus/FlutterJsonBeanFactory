@@ -53,10 +53,10 @@ class FlutterBeanFactoryAction : AnAction() {
                         //导包
                         allClass.forEach { itemNeedFile ->
                             //需要生成包名
-                            val helpPackageName = "${File(itemNeedFile.second).nameWithoutExtension}_helper.dart"
+                            val helpPackageName = "${File(itemNeedFile.import).nameWithoutExtension}_helper.dart"
                             content.append(
                                 "import 'package:${pubSpecConfig?.name}/${
-                                    itemNeedFile.second.substringAfter(
+                                    itemNeedFile.import.substringAfter(
                                         "${pubSpecConfig?.name}/"
                                     )
                                 }"
@@ -91,15 +91,18 @@ class FlutterBeanFactoryAction : AnAction() {
 		return _getToJson<T>(runtimeType, this);
   }"""
                         )
-                        content.append("\n\n");
+                        content.append("\n\n")
                         content.append(
                             "  static _getFromJson<T>(Type type, data, json) {\n" +
                                     "    switch (type) {"
                         )
                         allClass.forEach { itemClass ->
-                            itemClass.first.classes.forEach { itemFile ->
+                            itemClass.info.classes.forEach { itemFile ->
                                 content.append("\n\t\t\tcase ${itemFile.className}:\n")
-                                content.append("\t\t\t\treturn ${itemFile.className.toLowerCaseFirstOne()}FromJson(data as ${itemFile.className}, json) as T;")
+                                content.append("\t\t\t\treturn ${itemFile.className.toLowerCaseFirstOne()}FromJson${if (itemFile.typeName.isNotEmpty()) "<T>" else ""}(data as " +
+                                    "${itemFile
+                                    .className}, " +
+                                    "json) as T;")
                             }
                         }
                         content.append(
@@ -107,13 +110,13 @@ class FlutterBeanFactoryAction : AnAction() {
                                     "    return data as T;\n" +
                                     "  }"
                         )
-                        content.append("\n\n");
+                        content.append("\n\n")
                         content.append(
                             "  static _getToJson<T>(Type type, data) {\n" +
                                     "\t\tswitch (type) {"
                         )
                         allClass.forEach {
-                            it.first.classes.forEach { itemFile ->
+                            it.info.classes.forEach { itemFile ->
                                 content.append("\n\t\t\tcase ${itemFile.className}:\n")
                                 content.append("\t\t\t\treturn ${itemFile.className.toLowerCaseFirstOne()}ToJson(data as ${itemFile.className});")
                             }
@@ -132,8 +135,8 @@ class FlutterBeanFactoryAction : AnAction() {
                         content.append("\t\tString type = M.toString();\n")
                         allClass.forEach { itemClass ->
                             val isFirstIf = allClass.indexOf(itemClass) == 0
-                            itemClass.first.classes.forEach { itemFile ->
-                                val isFirstClassFileIf = itemClass.first.classes.indexOf(itemFile) == 0
+                            itemClass.info.classes.forEach { itemFile ->
+                                val isFirstClassFileIf = itemClass.info.classes.indexOf(itemFile) == 0
                                 if (isFirstIf && isFirstClassFileIf) {
                                     content.append("\t\tif(type == (${itemFile.className}).toString()){\n")
                                     content.append("\t\t\treturn ${itemFile.className}().fromJson(json);\n")
@@ -158,8 +161,8 @@ class FlutterBeanFactoryAction : AnAction() {
                         )
                         allClass.forEach { itemClass ->
                             val isFirstIf = allClass.indexOf(itemClass) == 0
-                            itemClass.first.classes.forEach { itemFile ->
-                                val isFirstClassFileIf = itemClass.first.classes.indexOf(itemFile) == 0
+                            itemClass.info.classes.forEach { itemFile ->
+                                val isFirstClassFileIf = itemClass.info.classes.indexOf(itemFile) == 0
                                 //第一行
                                 if (isFirstIf && isFirstClassFileIf) {
                                     content.append("\t\tif(<${itemFile.className}>[] is M){\n")
@@ -201,7 +204,6 @@ class FlutterBeanFactoryAction : AnAction() {
                 } catch (e: RuntimeException) {
                     e.message?.let { project.showNotify(it) }
                 }
-
 
             } else {
                 project.showNotify("This project is not the flutter project or the flutterJson in pubspec.yaml with the enable set to false")
