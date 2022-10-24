@@ -56,6 +56,20 @@ fun isBaseType(typeName: String): Boolean {
     return BASE_TYPES[typeName.replace("?", "")] ?: false
 }
 
+/**
+ * 是否是map类型
+ */
+fun isMapType(type: String): Boolean {
+    return type.startsWith("Map<") || type == "Map"
+}
+
+/**
+ * 是否是set类型
+ */
+fun isSetType(type: String): Boolean {
+    return type.startsWith("Set<") || type == "Set"
+}
+
 
 fun getListSubType(typeName: String): String {
     val newTypeName = typeName.replace("?", "")
