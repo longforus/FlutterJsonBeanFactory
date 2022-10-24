@@ -2,6 +2,7 @@ package com.github.zhangruiyu.flutterjsonbeanfactory.action.dart_to_helper.node
 
 import com.github.zhangruiyu.flutterjsonbeanfactory.action.jsontodart.utils.*
 import com.github.zhangruiyu.flutterjsonbeanfactory.utils.toLowerCaseFirstOne
+import com.intellij.openapi.vfs.VirtualFile
 
 
 /**
@@ -73,9 +74,21 @@ class HelperClassGeneratorInfo {
         if (isListType) {
             //如果泛型里带null
             if (getListSubTypeCanNull(type).endsWith("?")) {
-                stringBuilder.append("final List<${getListSubType(type)}?>? $classFieldName = jsonConvert.convertList<${getListSubType(type)}>(json['${getJsonName}']);\n")
+                stringBuilder.append(
+                    "final List<${getListSubType(type)}?>? $classFieldName = jsonConvert.convertList<${
+                        getListSubType(
+                            type
+                        )
+                    }>(json['${getJsonName}']);\n"
+                )
             } else {
-                stringBuilder.append("final List<${getListSubType(type)}>? $classFieldName = jsonConvert.convertListNotNull<${getListSubType(type)}>(json['${getJsonName}']);\n")
+                stringBuilder.append(
+                    "final List<${getListSubType(type)}>? $classFieldName = jsonConvert.convertListNotNull<${
+                        getListSubType(
+                            type
+                        )
+                    }>(json['${getJsonName}']);\n"
+                )
             }
 
         } else {
@@ -143,7 +156,8 @@ class HelperClassGeneratorInfo {
                     else -> "data['$getJsonName'] = $thisKey;"
                 }
             }
-            type.startsWith("Map")||type.startsWith("Set")->{
+            //是map或者set
+            isMapType(type) || isSetType(type) -> {
                 return "data['$getJsonName'] = $thisKey;"
             }
             // class

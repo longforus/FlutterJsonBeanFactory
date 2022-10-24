@@ -34,6 +34,7 @@ object YamlHelper {
     fun shouldActivateWith(pubSpecConfig: PubSpecConfig?): Boolean {
         return pubSpecConfig?.pubRoot?.declaresFlutter() ?: false
     }
+
 }
 
 
