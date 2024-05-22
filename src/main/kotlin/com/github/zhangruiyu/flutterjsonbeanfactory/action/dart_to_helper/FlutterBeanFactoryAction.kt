@@ -1,6 +1,5 @@
 package com.github.zhangruiyu.flutterjsonbeanfactory.action.dart_to_helper
 
-import com.github.zhangruiyu.flutterjsonbeanfactory.action.migrate.MigrateOldProject
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.PlatformDataKeys
@@ -13,7 +12,6 @@ import com.github.zhangruiyu.flutterjsonbeanfactory.utils.YamlHelper
 import com.github.zhangruiyu.flutterjsonbeanfactory.utils.commitContent
 import com.github.zhangruiyu.flutterjsonbeanfactory.workers.FileGenerator
 import com.github.zhangruiyu.flutterjsonbeanfactory.utils.showNotify
-import io.flutter.pub.PubRoot
 import java.io.File
 import java.lang.RuntimeException
 
@@ -31,9 +29,8 @@ class FlutterBeanFactoryAction : AnAction() {
         fun generateAllFile(project: Project) {
             val pubSpecConfig = YamlHelper.getPubSpecConfig(project)
             //判断是否是flutter项目
-            if (YamlHelper.shouldActivateFor(project)) {
+            if (pubSpecConfig != null && YamlHelper.shouldActivateFor(project)) {
                 try {
-                    MigrateOldProject.getAllEntityFiles(project)
                     //如果没有可以生成的文件,那么就不会生成
                     val allClass = FileHelpers.getAllEntityFiles(project)
                     if (allClass.isEmpty()) {
@@ -44,16 +41,22 @@ class FlutterBeanFactoryAction : AnAction() {
                             FileGenerator(project).generate()
                         }
                     }
-                    FileHelpers.getGeneratedFileRun(project) {
+                    FileHelpers.getGeneratedFileRun(project,pubSpecConfig.generatedPath) {
                         //1.上次生成的老旧老文件
                         val oldHelperChildren =
                             it.children.filterIsInstance<VirtualFileImpl>().toMutableList()
-                        //删除多余helper文件
-                        oldHelperChildren.forEach { needDelFile ->
-                            needDelFile.delete(needDelFile)
+                        //2.删除多余helper文件
+                        oldHelperChildren.forEach { oldPath ->
+                            //新生成的文件名
+                            val newFileNameList =
+                                allClass.map { newPath -> "${File(newPath.second).nameWithoutExtension}.g.dart" }
+                            //如果现在生成的不包含在这里,那么就删除
+                            if (newFileNameList.contains(oldPath.name).not()) {
+                                oldPath.delete(oldPath)
+                            }
                         }
                         //3.重新生成所有helper类
-                        FileHelpers.generateAllDartEntityHelper(project, allClass)
+                        FileHelpers.generateAllDartEntityHelper(project,pubSpecConfig.generatedPath, allClass)
                         //4.重新生成jsonConvert类
                         val content = StringBuilder()
                         content.append("// ignore_for_file: non_constant_identifier_names\n// ignore_for_file: camel_case_types\n// ignore_for_file: prefer_single_quotes\n\n")
@@ -70,93 +73,135 @@ class FlutterBeanFactoryAction : AnAction() {
                         content.append("JsonConvert jsonConvert = JsonConvert();")
                         content.append("\n")
                         content.append("typedef JsonConvertFunction<T> = T Function(Map<String, dynamic> json);")
-                        content.append("\n\n")
+                        content.append("\n")
+                        content.append("typedef EnumConvertFunction<T> = T Function(String value);")
+                        content.append("\n")
+                        content.append("typedef ConvertExceptionHandler = void Function(Object error, StackTrace stackTrace);")
+                        content.append("\n")
+                        content.append("extension MapSafeExt<K, V> on Map<K, V> {\n" +
+                                "  T? getOrNull<T>(K? key) {\n" +
+                                "    if (!containsKey(key) || key == null) {\n" +
+                                "      return null;\n" +
+                                "    } else {\n" +
+                                "      return this[key] as T?;\n" +
+                                "    }\n" +
+                                "  }\n" +
+                                "}")
+                        content.append("\n")
                         content.append("class JsonConvert {")
                         content.append("\n")
-                        content.append("\tstatic final Map<String, JsonConvertFunction> _convertFuncMap = {")
+                        content.append("\tstatic ConvertExceptionHandler? onError;")
                         content.append("\n")
-                        allClass.forEach { itemClass ->
-                            itemClass.first.classes.forEach { itemFile ->
-                                content.append("\t\t(${itemFile.className}).toString(): ${itemFile.className}.fromJson,\n")
-                            }
-                        }
-                        content.append("\t};")
-                        content.append("\n\n")
+                        ///这里本来写成get方法的,虽然解决了hotreload无法更新的问题,但是会导致效率低下,对jsonarray有很多值的情况下,遍历会导致重复get效率低下
+                        content.append("\tJsonConvertClassCollection convertFuncMap = JsonConvertClassCollection();")
+                        content.append("\t/// When you are in the development, to generate a new model class, hot-reload doesn't find new generation model class, you can build on MaterialApp method called jsonConvert. ReassembleConvertFuncMap (); This method only works in a development environment\n")
+                        content.append("\t/// https://flutter.cn/docs/development/tools/hot-reload\n")
+                        content.append("\t/// class MyApp extends StatelessWidget {\n")
+                        content.append("\t///    const MyApp({Key? key})\n")
+                        content.append("\t///        : super(key: key);\n")
+                        content.append("\t///\n")
+                        content.append("\t///    @override\n")
+                        content.append("\t///    Widget build(BuildContext context) {\n")
+                        content.append("\t///      jsonConvert.reassembleConvertFuncMap();\n")
+                        content.append("\t///      return MaterialApp();\n")
+                        content.append("\t///    }\n")
+                        content.append("\t/// }\n")
+                        content.append("\tvoid reassembleConvertFuncMap(){\n")
+                        content.append("\tbool isReleaseMode = const bool.fromEnvironment('dart.vm.product');\n")
+                        content.append("\tif(!isReleaseMode) {\n")
+                        content.append("\tconvertFuncMap = JsonConvertClassCollection();\n")
+                        content.append("\t}\n")
+                        content.append("\t}\n")
                         content.append(
-                            "  T? convert<T>(dynamic value) {\n" +
+                            "  T? convert<T>(dynamic value, {EnumConvertFunction? enumConvert}) {\n" +
                                     "    if (value == null) {\n" +
                                     "      return null;\n" +
                                     "    }\n" +
-                                    "    return asT<T>(value);\n" +
-                                    "  }"
-                        )
-                        content.append("\n\n")
-                        content.append(
-                            "  List<T?>? convertList<T>(List<dynamic>? value) {\n" +
-                                    "    if (value == null) {\n" +
-                                    "      return null;\n" +
-                                    "    }\n" +
-                                    "    try {\n" +
-                                    "      return value.map((dynamic e) => asT<T>(e)).toList();\n" +
-                                    "    } catch (e, stackTrace) {\n" +
-                                    "      debugPrint('asT<${"\$T"}> ${"\$e"} ${"\$stackTrace"}');\n" +
-                                    "      return <T>[];\n" +
-                                    "    }\n" +
-                                    "  }"
-                        )
-                        content.append("\n\n")
-                        content.append(
-                            "  List<T>? convertListNotNull<T>(dynamic value) {\n" +
-                                    "    if (value == null) {\n" +
-                                    "      return null;\n" +
-                                    "    }\n" +
-                                    "    try {\n" +
-                                    "      return (value as List<dynamic>).map((dynamic e) => asT<T>(e)!).toList();\n" +
-                                    "    } catch (e, stackTrace) {\n" +
-                                    "      debugPrint('asT<${"\$T"}> ${"\$e"} ${"\$stackTrace"}');\n" +
-                                    "      return <T>[];\n" +
-                                    "    }\n" +
-                                    "  }"
-                        )
-                        content.append("\n\n")
-                        content.append(
-                            "  T? asT<T extends Object?>(dynamic value) {\n" +
                                     "    if (value is T) {\n" +
                                     "      return value;\n" +
                                     "    }\n" +
-                                    "    final String type = T.toString();\n" +
                                     "    try {\n" +
-                                    "      final String valueS = value.toString();\n" +
-                                    "      if (type == \"String\") {\n" +
-                                    "        return valueS as T;\n" +
-                                    "      } else if (type == \"int\") {\n" +
-                                    "        final int? intValue = int.tryParse(valueS);\n" +
-                                    "        if (intValue == null) {\n" +
-                                    "          return double.tryParse(valueS)?.toInt() as T?;\n" +
-                                    "        } else {\n" +
-                                    "          return intValue as T;\n" +
-                                    "        }\n" +
-                                    "      } else if (type == \"double\") {\n" +
-                                    "        return double.parse(valueS) as T;\n" +
-                                    "      } else if (type == \"DateTime\") {\n" +
-                                    "        return DateTime.parse(valueS) as T;\n" +
-                                    "      } else if (type == \"bool\") {\n" +
-                                    "        if (valueS == '0' || valueS == '1') {\n" +
-                                    "          return (valueS == '1') as T;\n" +
-                                    "        }\n" +
-                                    "        return (valueS == 'true') as T;\n" +
-                                    "      } else if (type == \"Map\" || type.startsWith(\"Map<\")) {\n" +
-                                    "        return value as T;\n" +
-                                    "      } else {\n" +
-                                    "        if (_convertFuncMap.containsKey(type)) {\n" +
-                                    "          return _convertFuncMap[type]!(value) as T;\n" +
-                                    "        } else {\n" +
-                                    "          throw UnimplementedError('${"\$type"} unimplemented');\n" +
-                                    "        }\n" +
-                                    "      }\n" +
+                                    "      return _asT<T>(value, enumConvert: enumConvert);\n" +
                                     "    } catch (e, stackTrace) {\n" +
                                     "      debugPrint('asT<${"\$T"}> ${"\$e"} ${"\$stackTrace"}');\n" +
+                                    "      if (onError != null) {" +
+                                    "         onError!(e, stackTrace);" +
+                                    "      }"+
                                     "      return null;\n" +
+                                    "    }\n" +
+                                    "  }"
+                        )
+                        content.append("\n\n")
+                        content.append(
+                            "  List<T?>? convertList<T>(List<dynamic>? value, {EnumConvertFunction? enumConvert}) {\n" +
+                                    "    if (value == null) {\n" +
+                                    "      return null;\n" +
+                                    "    }\n" +
+                                    "    try {\n" +
+                                    "      return value.map((dynamic e) => _asT<T>(e,enumConvert: enumConvert)).toList();\n" +
+                                    "    } catch (e, stackTrace) {\n" +
+                                    "      debugPrint('asT<${"\$T"}> ${"\$e"} ${"\$stackTrace"}');\n" +
+                                    "      if (onError != null) {" +
+                                    "         onError!(e, stackTrace);" +
+                                    "      }"+
+                                    "      return <T>[];\n" +
+                                    "    }\n" +
+                                    "  }"
+                        )
+                        content.append("\n\n")
+                        content.append(
+                            "List<T>? convertListNotNull<T>(dynamic value, {EnumConvertFunction? enumConvert}) {\n" +
+                                    "    if (value == null) {\n" +
+                                    "      return null;\n" +
+                                    "    }\n" +
+                                    "    try {\n" +
+                                    "      return (value as List<dynamic>).map((dynamic e) => _asT<T>(e,enumConvert: enumConvert)!).toList();\n" +
+                                    "    } catch (e, stackTrace) {\n" +
+                                    "      debugPrint('asT<${"\$T"}> ${"\$e"} ${"\$stackTrace"}');\n" +
+                                    "      if (onError != null) {" +
+                                    "         onError!(e, stackTrace);" +
+                                    "      }"+
+                                    "      return <T>[];\n" +
+                                    "    }\n" +
+                                    "  }"
+                        )
+                        content.append("\n\n")
+                        content.append(
+                            "  T? _asT<T extends Object?>(dynamic value,\n" +
+                                    "      {EnumConvertFunction? enumConvert}) {\n" +
+                                    "    final String type = T.toString();\n" +
+                                    "    final String valueS = value.toString();\n" +
+                                    "    if (enumConvert != null) {\n" +
+                                    "      return enumConvert(valueS) as T;\n" +
+                                    "    } else if (type == \"String\") {\n" +
+                                    "      return valueS as T;\n" +
+                                    "    } else if (type == \"int\") {\n" +
+                                    "      final int? intValue = int.tryParse(valueS);\n" +
+                                    "      if (intValue == null) {\n" +
+                                    "        return double.tryParse(valueS)?.toInt() as T?;\n" +
+                                    "      } else {\n" +
+                                    "        return intValue as T;\n" +
+                                    "      }\n" +
+                                    "    } else if (type == \"double\") {\n" +
+                                    "      return double.parse(valueS) as T;\n" +
+                                    "    } else if (type == \"DateTime\") {\n" +
+                                    "      return DateTime.parse(valueS) as T;\n" +
+                                    "    } else if (type == \"bool\") {\n" +
+                                    "      if (valueS == '0' || valueS == '1') {\n" +
+                                    "        return (valueS == '1') as T;\n" +
+                                    "      }\n" +
+                                    "      return (valueS == 'true') as T;\n" +
+                                    "    } else if (type == \"Map\" || type.startsWith(\"Map<\")) {\n" +
+                                    "      return value as T;\n" +
+                                    "    } else {\n" +
+                                    "      if (convertFuncMap.containsKey(type)) {\n" +
+                                    "        if (value == null) {\n" +
+                                    "          return null;\n" +
+                                    "        }\n" +
+                                    "        return convertFuncMap[type]!(value as Map<String, dynamic>) as T;\n" +
+                                    "      } else {\n" +
+                                    "        throw UnimplementedError('${"\$type"} unimplemented,you can try running the app again');\n" +
+                                    "      }\n" +
                                     "    }\n" +
                                     "  }"
                         )
@@ -174,39 +219,48 @@ class FlutterBeanFactoryAction : AnAction() {
                             }
                         }
                         content.append(
-                            "\n\t\tdebugPrint(\"\${M.toString()} not found\");\n\t"
+                            "\n\t\tdebugPrint(\"\$M not found\");\n\t"
                         )
                         content.append(
-                            "\n\t\treturn null;\n}"
+                            "\n\t\treturn null;\n"
+                        )
+                        content.append(
+                            "\t}"
                         )
                         content.append("\n\n")
                         //fromJsonAsT
-                        //language=TEXT
                         content.append(
-                            "static M? fromJsonAsT<M>(dynamic json) {\n" +
-                                "    if (json is List) {\n" +
-                                "      if (json.isNotEmpty && primitiveTypes.contains(json[0].runtimeType.toString())) {\n" +
-                                "        return jsonConvert.asT<M>(json);\n" +
-                                "      }\n" +
-                                "      return _getListChildType<M>(json.map((e) => e as Map<String, dynamic>).toList());\n" +
-                                "    } else {\n" +
-                                "      return jsonConvert.asT<M>(json);\n" +
-                                "    }\n" +
-                                "  }\n" +
-                                "\n" +
-                                "  static const primitiveTypes = [\n" +
-                                "    \"int\",\n" +
-                                "    \"num\",\n" +
-                                "    \"double\",\n" +
-                                "    \"String\",\n" +
-                                "    \"bool\",\n" +
-                                "    \"dynamic\",\n" +
-                                "  ];"
+                            "\tstatic M? fromJsonAsT<M>(dynamic json) {\n" +
+                                    "\t\tif (json is M) {\n" +
+                                    "\t\t\treturn json;\n" +
+                                    "\t\t}\n" +
+                                    "\t\tif (json is List) {\n" +
+                                    "\t\t\treturn _getListChildType<M>(json.map((dynamic e) => e as Map<String, dynamic>).toList());\n" +
+                                    "\t\t} else {\n" +
+                                    "\t\t\treturn jsonConvert.convert<M>(json);\n" +
+                                    "\t\t}\n" +
+                                    "\t}"
                         )
 
                         content.append("\n")
-                        content.append("}")
-                        val generated = FileHelpers.getJsonConvertBaseFile(project)
+                        content.append("}\n\n")
+                        content.append("\tclass JsonConvertClassCollection {")
+                        content.append("\tMap<String, JsonConvertFunction> convertFuncMap = {")
+                        content.append("\n")
+                        allClass.forEach { itemClass ->
+                            itemClass.first.classes.forEach { itemFile ->
+                                content.append("\t\t(${itemFile.className}).toString(): ${itemFile.className}.fromJson,\n")
+                            }
+                        }
+                        content.append("\t};\n")
+                        content.append("bool containsKey(String type) {\n")
+                        content.append("return convertFuncMap.containsKey(type);\n")
+                        content.append("}\n")
+                        content.append("JsonConvertFunction? operator [](String key) {\n")
+                        content.append("return convertFuncMap[key];\n")
+                        content.append("}\n")
+                        content.append("\t}")
+                        val generated = FileHelpers.getJsonConvertBaseFile(project,pubSpecConfig.generatedPath)
                         //获取json_convert_content目录,并写入
                         generated.findOrCreateChildData(this, "json_convert_content.dart")
                             .commitContent(project, content.toString())

@@ -8,13 +8,14 @@ import javax.swing.JComponent
 
 @State(name = "FlutterJsonBeanSetting", storages = [Storage("FlutterJsonBeanSetting.xml")])
 class SettingComponent : Configurable {
-    var settingLayout: SettingLayout? = null
+    private var settingLayout: SettingLayout? = null
     override fun isModified(): Boolean {
         if (settingLayout == null) {
             return false
         }
         return getSettings() != Settings(
-                settingLayout!!.getModelSuffix(),false)
+            settingLayout!!.getModelSuffix(), isOpenNullAble = false,  setDefault = false
+        )
     }
 
     override fun getDisplayName(): String {

@@ -53,43 +53,7 @@ fun isPrimitiveType(typeName: String): Boolean {
  * 是否是基础数据类型
  */
 fun isBaseType(typeName: String): Boolean {
-    return BASE_TYPES[typeName.replace("?", "")] ?: false
-}
-
-/**
- * 是否是map类型
- */
-fun isMapType(type: String): Boolean {
-    return type.startsWith("Map<") || type == "Map"
-}
-
-/**
- * 是否是set类型
- */
-fun isSetType(type: String): Boolean {
-    return type.startsWith("Set<") || type == "Set"
-}
-
-
-fun getListSubType(typeName: String): String {
-    val newTypeName = typeName.replace("?", "")
-    return mapOf(
-        "List<num>" to "num",
-        "List<int>" to "int",
-        "List<double>" to "double",
-        "List<String>" to "String",
-        "List<DateTime>" to "DateTime",
-        "List<bool>" to "bool",
-        "List<dynamic>" to "dynamic",
-        "List" to "dynamic",
-        "List<Null>" to "dynamic"
-    )[newTypeName] ?: newTypeName.substringAfter("<").substringBefore(">")
-}
-
-fun getListSubTypeCanNull(typeName: String): String {
-    return mapOf(
-        "List" to "dynamic",
-    )[typeName] ?: typeName.substringAfter("<").substringBefore(">")
+    return BASE_TYPES[typeName] ?: false
 }
 
 
@@ -120,66 +84,4 @@ fun getTypeName(obj: Any?): String {
     }
 }
 
-fun camelCase(init: String): String {
-    val newInit = init.replace("-", "_")
-    if (newInit.contains("_").not()) {
-        return newInit.toUpperCaseFirstOne()
-    }
-    val ret = StringBuilder(newInit.length)
-    for (word in newInit.split("_".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()) {
-        if (word.isNotEmpty()) {
-            ret.append(word.substring(0, 1).toUpperCase())
-            ret.append(word.substring(1).toLowerCase())
-        }
-        if (ret.length != newInit.length)
-            ret.append(" ")
-    }
 
-    /* if (PRIMITIVE_TYPES[result] != null || dartKeyword.contains(result)) {
- //        throw MessageException("Please do not use the keyword $result as the key")
-         result +="X"
-     }*/
-    return ret.toString().replace(" ", "")
-}
-
-fun camelCaseFirstLower(text: String): String {
-    LogUtil.w(text)
-    if (text.isEmpty()) {
-        return text
-    }
-    val camelCaseText = if (text.contains("_")) {
-        camelCase(text)
-    } else {
-        text
-    }
-    if (camelCaseText.length == 1) {
-        return camelCaseText.toLowerCase()
-    }
-    val firstChar = camelCaseText.substring(0, 1).toLowerCase()
-    val rest = camelCaseText.substring(1)
-    return "$firstChar$rest"
-}
-
-//驼峰命名
-fun fixFieldName(name: String, typeDef: TypeDefinition? = null, privateField: Boolean = false): String {
-    val newName = name.replace("-", "_")
-    var properName = newName;
-    if (newName.startsWith('_') || newName.startsWith("[0-9]")) {
-        val firstCharType = typeDef?.name?.substring(0, 1)?.toLowerCase();
-        properName = "$firstCharType$newName"
-    }
-    val fieldName = camelCaseFirstLower(properName);
-    if (privateField) {
-        return "_$fieldName"
-    }
-    return filedKeywordRename(fieldName)
-}
-
-fun filedKeywordRename(key: String): String {
-    var notKeyWord = key
-    //关键字的修改字段名
-    if (FlutterUtils.isDartKeyword(key) || key.first().isDigit()) {
-        notKeyWord = "x${key.toUpperCaseFirstOne()}"
-    }
-    return notKeyWord
-}

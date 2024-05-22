@@ -1,13 +1,10 @@
 package com.github.zhangruiyu.flutterjsonbeanfactory.action.jsontodart
 
+import com.github.zhangruiyu.flutterjsonbeanfactory.utils.*
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.project.Project
-import com.github.zhangruiyu.flutterjsonbeanfactory.utils.YamlHelper
 import com.github.zhangruiyu.flutterjsonbeanfactory.utils.GsonUtil.MapTypeAdapter
-import com.github.zhangruiyu.flutterjsonbeanfactory.action.jsontodart.utils.camelCase
-import com.github.zhangruiyu.flutterjsonbeanfactory.utils.JsonUtils
-import com.github.zhangruiyu.flutterjsonbeanfactory.utils.toUpperCaseFirstOne
 
 
 class ModelGenerator(
@@ -30,17 +27,19 @@ class ModelGenerator(
             // if first element is an array, start in the first element.
             generateClassDefinition(newClassName, newClassName, jsonRawData[0]!!)
         } else if (jsonRawData is Map<*, *>) {
-            val keys = jsonRawData.keys
+            val keys = jsonRawData.keys.map { it.toString() }
             //如果是list,就把名字修改成单数
             val classDefinition = ClassDefinition(
                 when {
                     "list" == parentType -> {
                         newClassName
                     }
+
                     isFirstClass -> {//如果是第一个类
                         isFirstClass = false
                         newClassName + collectInfo.modelSuffix().toUpperCaseFirstOne()
                     }
+
                     else -> {
                         newClassName
                     }
@@ -48,13 +47,14 @@ class ModelGenerator(
             )
             keys.forEach { key ->
                 val typeDef = TypeDefinition.fromDynamic(jsonRawData[key])
+                val fieldTypeName = FieldUtils.toFieldTypeName(key)
                 if (typeDef.name == "Class") {
-                    typeDef.name = preName + camelCase(key as String)
+                    typeDef.name = preName + fieldTypeName
                 }
                 if (typeDef.subtype != null && typeDef.subtype == "Class") {
-                    typeDef.subtype = preName + camelCase(key as String)
+                    typeDef.subtype = preName + fieldTypeName
                 }
-                classDefinition.addField(key as String, typeDef)
+                classDefinition.addField(key, typeDef)
             }
             if (allClasses.firstOrNull { cd -> cd == classDefinition } == null) {
                 allClasses.add(classDefinition)
@@ -74,7 +74,7 @@ class ModelGenerator(
         return allClasses
     }
 
-    fun generateDartClassesToString(fileName: String): String {
+    fun generateDartClassesToString(fileName: String, generatedPath: String): String {
         //用阿里的防止int变为double 已解决 还是用google的吧 https://www.codercto.com/a/73857.html
 //        val jsonRawData = JSON.parseObject(collectInfo.userInputJson)
         val originalStr = collectInfo.userInputJson.trim()
@@ -105,11 +105,14 @@ class ModelGenerator(
         }
         val stringBuilder = StringBuilder()
         //导包
-        stringBuilder.append("import 'package:${pubSpecConfig?.name}/generated/json/base/json_field.dart';")
+        stringBuilder.append("import 'package:${pubSpecConfig?.name}/${generatedPath}/base/json_field.dart';")
         stringBuilder.append("\n")
-        stringBuilder.append("import 'package:${pubSpecConfig?.name}/generated/json/${fileName}.g.dart';")
+        stringBuilder.append("import 'package:${pubSpecConfig?.name}/${generatedPath}/${fileName}.g.dart';")
         stringBuilder.append("\n")
         stringBuilder.append("import 'dart:convert';")
+        stringBuilder.append("\n")
+        ///这个是方便copyWith调用
+        stringBuilder.append("export 'package:${pubSpecConfig?.name}/${generatedPath}/${fileName}.g.dart';")
         stringBuilder.append("\n")
         stringBuilder.append("\n")
         stringBuilder.append(classContent)
