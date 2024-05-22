@@ -1,16 +1,69 @@
 package com.github.zhangruiyu.flutterjsonbeanfactory.action.dart_to_helper.node
 
+import com.github.zhangruiyu.flutterjsonbeanfactory.action.dart_to_helper.model.FieldClassTypeInfo
 import com.intellij.psi.PsiFile
 import com.intellij.psi.impl.source.tree.CompositeElement
 import com.jetbrains.lang.dart.DartElementType
 import com.jetbrains.lang.dart.DartTokenTypes
+import com.jetbrains.lang.dart.psi.DartFile
 import org.jetbrains.kotlin.psi.psiUtil.children
+
 
 object GeneratorDartClassNodeToHelperInfo {
     val notSupportType = listOf("static", "const")
     fun getDartFileHelperClassGeneratorInfo(file: PsiFile): HelperFileGeneratorInfo? {
+        val dartFile = file as DartFile
+// 查找顶级类定义
+        // 查找顶级类定义
+
+
         //不包含JsonConvert 那么就不转
         return if (file.text.contains("@JsonSerializable") && file.name != "json_convert_content.dart") {
+            val classDefinition = dartFile.children
+            /*  classDefinition.forEach {
+  //                println(it)
+                  if (it is DartClass) {
+                      val children = it.children
+                      children.forEach { itemClass ->
+  //                        if(fieldAndFunc)
+  //                        println("是类 ${fieldAndFunc.text} ${fieldAndFunc.elementType}")
+                          itemClass.children.forEach { fieldAndFunc ->
+                              fieldAndFunc.children.forEach { fieldDeclaration ->
+                                  if (fieldDeclaration is DartVarDeclarationListImpl) {
+
+                                      // 获取字段名称
+
+                                      // 获取字段名称
+  //                                    val componentName = fieldDeclaration.componentName
+  //                                    val fieldName = fieldDeclaration.name!!
+
+                                      // 获取字段类型
+
+                                      // 获取字段类型
+                                      val tokenType = fieldDeclaration.tokenType
+                                      val elementType = fieldDeclaration.elementType
+  //                                    val dartType: DartType = fieldDeclaration.getDartType()
+  //                                    val fieldTypeName = if (dartType != null) dartType.text else "dynamic"
+  //
+  //                                    // 输出字段类型
+                                      fieldDeclaration.children.forEach { itemFieldType ->
+                                          println("Field Name: ${itemFieldType.text} ${itemFieldType::class.java.name}")
+                                      }
+  //                                    // 输出字段类型
+
+  //                                    println("Field Type: $fieldTypeName")
+  //                                    println("是类 ${fieldDeclaration.text} ${fieldDeclaration.elementType}")
+                                  }
+                                  println("是类 ${fieldDeclaration.text} ${fieldDeclaration.elementType} ${fieldDeclaration::class.java.name}")
+                              }
+
+                          }
+                      }
+
+                  }
+              }
+  */
+
             val mutableMapOf = mutableListOf<HelperClassGeneratorInfo>()
             val imports: MutableList<String> = mutableListOf()
             file.children.forEach {
@@ -27,130 +80,166 @@ object GeneratorDartClassNodeToHelperInfo {
                             //是类里字段
                             if (filedAndMethodNode.elementType == DartTokenTypes.CLASS_BODY) {
                                 filedAndMethodNode.children().forEach { itemFile ->
+                                    //debug看数据用
+                                    val itemFileText = itemFile.text
                                     itemFile.children().forEach { itemFileNode ->
+                                        //debug看数据用
+                                        val itemFileNodeText = itemFileNode.text
                                         //itemFileNode text : int code
                                         if (itemFileNode.elementType == DartTokenTypes.VAR_DECLARATION_LIST) {
                                             var nameNode: String? = null
-                                            var typeNode: String? = null
+                                            var typeNodeInfo: FieldClassTypeInfo? = null
                                             var isLate = false
                                             var isStatic = false
                                             //当前字段的所有注解
                                             val allAnnotation = mutableListOf<AnnotationValue>()
                                             itemFileNode.firstChildNode.children().forEach lit@{ fieldWholeNode ->
                                                 //如果第一个是注解,解析注解里的内容
-                                                if (fieldWholeNode.text == "static") {
+                                                val fieldWholeNodeText = fieldWholeNode.text
+                                                if (fieldWholeNodeText == "static") {
                                                     //什么也不干
                                                     isStatic = true
-                                                } else if (fieldWholeNode.text == "final") {
+                                                } else if (fieldWholeNodeText == "final") {
                                                     //什么也不干
                                                     return@lit
-                                                } else if (fieldWholeNode.text.trim().isEmpty()) {
+                                                } else if (fieldWholeNodeText.trim().isEmpty()) {
                                                     //什么也不干
                                                     return@lit
                                                 } else if (isStatic) {
                                                     return@lit
-                                                } else if (fieldWholeNode.elementType == DartTokenTypes.METADATA) {
+                                                } else if (fieldWholeNode.elementType == DartTokenTypes.METADATA) {///如果包含注解
                                                     val annotationWholeNode = fieldWholeNode.firstChildNode;
                                                     //@JSONField(name: 'app',serialize:true) 为例
                                                     if (
                                                     //@
-                                                            annotationWholeNode.text == "@" &&
-                                                            //JSONField
-                                                            fieldWholeNode.firstChildNode.treeNext.elementType == DartTokenTypes.REFERENCE_EXPRESSION && fieldWholeNode.firstChildNode.treeNext.text == "JSONField"
+                                                        annotationWholeNode.text == "@" &&
+                                                        //JSONField
+                                                        fieldWholeNode.firstChildNode.treeNext.elementType == DartTokenTypes.REFERENCE_EXPRESSION && fieldWholeNode.firstChildNode.treeNext.text == "JSONField"
                                                     ) {
 
                                                         if (fieldWholeNode.firstChildNode.treeNext.treeNext.elementType == DartTokenTypes.ARGUMENTS) {
                                                             fieldWholeNode.firstChildNode.treeNext.treeNext.children()
-                                                                    .forEach { onlyItemWholeMetaValueDataNode ->
-                                                                        //onlyItemWholeMetaValueDataNode 只有注解的多个内容:name: 'app',serialize:true
-                                                                        if (onlyItemWholeMetaValueDataNode.elementType == DartTokenTypes.ARGUMENT_LIST) {
-                                                                            println("注解22 ${onlyItemWholeMetaValueDataNode.text}")
+                                                                .forEach { onlyItemWholeMetaValueDataNode ->
+                                                                    //onlyItemWholeMetaValueDataNode 只有注解的多个内容:name: 'app',serialize:true
+                                                                    if (onlyItemWholeMetaValueDataNode.elementType == DartTokenTypes.ARGUMENT_LIST) {
+                                                                        println("注解22 ${onlyItemWholeMetaValueDataNode.text}")
 
-                                                                            onlyItemWholeMetaValueDataNode.children()
-                                                                                    .forEach { onlyItemMetaValueDataNode ->
-                                                                                        // onlyItemMetaValueDataNode  只有注解的单个内容:name: 'app'
-                                                                                        println("注解33 ${onlyItemMetaValueDataNode.text}")
-                                                                                        if (onlyItemMetaValueDataNode.elementType == DartTokenTypes.NAMED_ARGUMENT) {
-                                                                                            var annotationName: String? = null
-                                                                                            var annotationValue: Any? = null
-                                                                                            onlyItemMetaValueDataNode.children()
-                                                                                                    .forEach { onlyItemNamedArgumentValueDataNode ->
-                                                                                                        //注解里内容的名字  name: 'app' 里的name
-                                                                                                        when (onlyItemNamedArgumentValueDataNode.elementType) {
-                                                                                                            DartTokenTypes.PARAMETER_NAME_REFERENCE_EXPRESSION -> {
-                                                                                                                annotationName =
-                                                                                                                        onlyItemNamedArgumentValueDataNode.text.replace(
-                                                                                                                                "\'",
-                                                                                                                                ""
-                                                                                                                        ).replace(
-                                                                                                                                "\"",
-                                                                                                                                ""
-                                                                                                                        )
-                                                                                                            }
-                                                                                                            DartTokenTypes.STRING_LITERAL_EXPRESSION -> {
-                                                                                                                annotationValue =
-                                                                                                                        onlyItemNamedArgumentValueDataNode.text.replace(
-                                                                                                                                "\'",
-                                                                                                                                ""
-                                                                                                                        ).replace(
-                                                                                                                                "\"",
-                                                                                                                                ""
-                                                                                                                        )
-                                                                                                            }
-                                                                                                            DartTokenTypes.LITERAL_EXPRESSION -> {
-                                                                                                                annotationValue =
-                                                                                                                        (onlyItemNamedArgumentValueDataNode.text == "true")
-                                                                                                            }
-                                                                                                        }
-
-                                                                                                        println("注解的内容 ${onlyItemNamedArgumentValueDataNode.text}")
-                                                                                                    }
-                                                                                            if (annotationName != null && annotationValue != null) {
-                                                                                                //注解的实际内容
-                                                                                                allAnnotation.add(
-                                                                                                        AnnotationValue(
-                                                                                                                annotationName!!,
-                                                                                                                annotationValue!!
+                                                                        onlyItemWholeMetaValueDataNode.children()
+                                                                            .forEach { onlyItemMetaValueDataNode ->
+                                                                                // onlyItemMetaValueDataNode  只有注解的单个内容:name: 'app'
+                                                                                println("注解33 ${onlyItemMetaValueDataNode.text}")
+                                                                                if (onlyItemMetaValueDataNode.elementType == DartTokenTypes.NAMED_ARGUMENT) {
+                                                                                    var annotationName: String? = null
+                                                                                    var annotationValue: Any? = null
+                                                                                    onlyItemMetaValueDataNode.children()
+                                                                                        .forEach { onlyItemNamedArgumentValueDataNode ->
+                                                                                            //注解里内容的名字  name: 'app' 里的name
+                                                                                            when (onlyItemNamedArgumentValueDataNode.elementType) {
+                                                                                                DartTokenTypes.PARAMETER_NAME_REFERENCE_EXPRESSION -> {
+                                                                                                    annotationName =
+                                                                                                        onlyItemNamedArgumentValueDataNode.text.replace(
+                                                                                                            "\'",
+                                                                                                            ""
+                                                                                                        ).replace(
+                                                                                                            "\"",
+                                                                                                            ""
                                                                                                         )
-                                                                                                )
+                                                                                                }
+
+                                                                                                DartTokenTypes.STRING_LITERAL_EXPRESSION -> {
+                                                                                                    annotationValue =
+                                                                                                        onlyItemNamedArgumentValueDataNode.text.replace(
+                                                                                                            "\'",
+                                                                                                            ""
+                                                                                                        ).replace(
+                                                                                                            "\"",
+                                                                                                            ""
+                                                                                                        )
+                                                                                                }
+
+                                                                                                DartTokenTypes.LITERAL_EXPRESSION -> {
+                                                                                                    annotationValue =
+                                                                                                        (onlyItemNamedArgumentValueDataNode.text == "true")
+                                                                                                }
                                                                                             }
+
+                                                                                            println("注解的内容 ${onlyItemNamedArgumentValueDataNode.text}")
                                                                                         }
-
+                                                                                    if (annotationName != null && annotationValue != null) {
+                                                                                        //注解的实际内容
+                                                                                        allAnnotation.add(
+                                                                                            AnnotationValue(
+                                                                                                annotationName!!,
+                                                                                                annotationValue!!
+                                                                                            )
+                                                                                        )
                                                                                     }
-                                                                        }
+                                                                                }
 
+                                                                            }
                                                                     }
+
+                                                                }
                                                         }
                                                     }
                                                 } else {
                                                     val isVar =
-                                                            fieldWholeNode.text == "var"
+                                                        fieldWholeNodeText == "var"
                                                     fieldWholeNode.children().forEach {
-                                                        println("普通解析222 ${it.firstChildNode.text}")
+                                                        it.children().forEach { it2 ->
+                                                            println("普通解析22222 ${it2.text} ${it2::class.java.name}")
+                                                        }
+                                                        println("普通解析222 ${it.firstChildNode.text} ${it}")
                                                     }
-                                                    println("普通解析 $nameNode $typeNode")
                                                     //不是注解,普通解析
                                                     when {
-                                                        fieldWholeNode.text == "late" || fieldWholeNode.text == "=" -> {
+                                                        fieldWholeNodeText == "late" || fieldWholeNodeText == "=" -> {
                                                             isLate = true
                                                         }
-                                                        fieldWholeNode.elementType == DartTokenTypes.TYPE || isVar -> {
-                                                            typeNode = fieldWholeNode.text
+
+                                                        isVar -> {
+                                                            typeNodeInfo =
+                                                                FieldClassTypeInfo(
+                                                                    primaryType = "dynamic",
+                                                                    nullable = true
+                                                                )
                                                         }
+
+                                                        fieldWholeNode.elementType == DartTokenTypes.TYPE -> {
+                                                            ///说明有泛型
+                                                            if (fieldWholeNode.children().toList().isNotEmpty()) {
+                                                                typeNodeInfo =
+                                                                    FieldClassTypeInfo.parseFieldClassTypeInfo(
+                                                                        fieldWholeNode.children().first().children()
+                                                                            .toList()
+                                                                    )
+                                                                println(typeNodeInfo)
+                                                                println("普通解析222 $fieldWholeNodeText")
+                                                            } else {
+                                                                println("没有泛型")
+                                                            }
+
+                                                        }
+
                                                         fieldWholeNode.elementType == DartTokenTypes.COMPONENT_NAME -> {
-                                                            nameNode = fieldWholeNode.text
+                                                            ///私有属性不考虑
+                                                            if (fieldWholeNodeText.startsWith("_")) {
+                                                                return@lit
+                                                            } else {
+                                                                nameNode = fieldWholeNodeText
+                                                            }
                                                         }
                                                         //  println("普通解析类型 ${itemFieldNode.elementType}")
                                                         //  println("普通解析类型文本 ${itemFieldNode.text}")
                                                     }
                                                     if (fieldWholeNode.elementType is DartElementType) {
-                                                        if (notSupportType.contains(fieldWholeNode.text)) {
+                                                        if (notSupportType.contains(fieldWholeNodeText)) {
                                                             val errorMessage =
-                                                                    "This file contains code that cannot be parsed: ${file.name}. content: ${nodeName}. type not supported ,such as ${notSupportType.joinToString()}"
+                                                                "This file contains code that cannot be parsed: ${file.name}. content: ${nodeName}. type not supported ,such as ${notSupportType.joinToString()}"
                                                             throw RuntimeException(errorMessage)
                                                         }
                                                     }
-                                                    println("普通解析类型文本 ${fieldWholeNode.text} 普通解析类型 ${fieldWholeNode.elementType}")
+                                                    println("普通解析类型文本 $fieldWholeNodeText 普通解析类型 ${fieldWholeNode.elementType}")
                                                 }
 
                                             }
@@ -158,12 +247,12 @@ object GeneratorDartClassNodeToHelperInfo {
                                             if (!isLate && itemFileNode.lastChildNode.text.contains("=")) {
                                                 isLate = true
                                             }
-                                            if(nameNode != null && typeNode != null) {
+                                            if (nameNode != null && typeNodeInfo != null) {
                                                 helperClassGeneratorInfo.addFiled(
-                                                        typeNode!!,
-                                                        nameNode!!,
-                                                        isLate,
-                                                        allAnnotation
+                                                    typeNodeInfo!!,
+                                                    nameNode!!,
+                                                    isLate,
+                                                    allAnnotation
                                                 )
                                             }
                                         }

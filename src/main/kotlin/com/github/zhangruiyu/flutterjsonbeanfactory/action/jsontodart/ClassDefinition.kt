@@ -1,19 +1,22 @@
 package com.github.zhangruiyu.flutterjsonbeanfactory.action.jsontodart
 
-import com.intellij.openapi.components.ServiceManager
+import com.intellij.openapi.application.ApplicationManager
 import com.github.zhangruiyu.flutterjsonbeanfactory.action.jsontodart.utils.*
 import com.github.zhangruiyu.flutterjsonbeanfactory.setting.Settings
+import com.github.zhangruiyu.flutterjsonbeanfactory.utils.FieldUtils
+import com.github.zhangruiyu.flutterjsonbeanfactory.utils.toLowerCaseFirstOne
 import com.github.zhangruiyu.flutterjsonbeanfactory.utils.toUpperCaseFirstOne
 
 class ClassDefinition(private val name: String, private val privateFields: Boolean = false) {
+    ///map的key是json的key,没有转成dart的命名方式
     val fields = mutableMapOf<String, TypeDefinition>()
     val dependencies: List<Dependency>
         get() {
             val dependenciesList = mutableListOf<Dependency>()
-            val keys = fields.keys
-            keys.forEach { k ->
-                if (fields[k]!!.isPrimitive.not()) {
-                    dependenciesList.add(Dependency(k, fields[k]!!))
+            fields.forEach {
+                ///如不不是主类型
+                if (it.value.isPrimitive.not()) {
+                    dependenciesList.add(Dependency(it.key, it.value))
                 }
             }
             return dependenciesList;
@@ -41,7 +44,7 @@ class ClassDefinition(private val name: String, private val privateFields: Boole
         return false
     }
 
-    fun _addTypeDef(typeDef: TypeDefinition, sb: StringBuffer, prefix: String, suffix: String) {
+    private fun _addTypeDef(typeDef: TypeDefinition, sb: StringBuffer, prefix: String, suffix: String) {
         if (typeDef.name == "Null") {
             sb.append("dynamic")
         } else {
@@ -55,16 +58,30 @@ class ClassDefinition(private val name: String, private val privateFields: Boole
         }
     }
 
+    private fun _addCopyWithTypeDef(typeDef: TypeDefinition, sb: StringBuffer, suffix: String) {
+        if (typeDef.name == "Null") {
+            sb.append("dynamic")
+        } else {
+            sb.append(typeDef.name)
+            if (typeDef.subtype != null) {
+                //如果是list,就把名字修改成单数
+                sb.append("<${typeDef.subtype!!}>")
+            }
+            sb.append(suffix)
+        }
+    }
+
     //字段的集合
-    val _fieldList: String
+    private val _fieldList: String
         get() {
-            val settings = ServiceManager.getService(Settings::class.java)
+            val settings = ApplicationManager.getApplication().getService(Settings::class.java)
             val isOpenNullAble = settings.isOpenNullAble == true
             val prefix = if (!isOpenNullAble) "late " else ""
             val suffix = if (isOpenNullAble) "?" else ""
             return fields.keys.map { key ->
-                val f = fields[key]
-                val fieldName = fixFieldName(key, f, privateFields)
+                val f = fields[key]!!
+                ///给key转成dart写法
+                val fieldName =  FieldUtils.toFieldTypeName(key).toLowerCaseFirstOne()
                 val sb = StringBuffer();
                 //如果驼峰命名后不一致,才这样
                 if (fieldName != key) {
@@ -72,8 +89,26 @@ class ClassDefinition(private val name: String, private val privateFields: Boole
                     sb.append("@JSONField(name: \"${key}\")\n")
                 }
                 sb.append('\t')
-                _addTypeDef(f!!, sb, prefix, suffix)
-                sb.append(" $fieldName;")
+                _addTypeDef(f, sb, prefix, suffix)
+                sb.append(" $fieldName")
+                if (settings.setDefault == true) {
+                    if (isListType(f.name)) {
+                        if (settings.listFieldDefaultValue()
+                                ?.isNotEmpty() == true
+                        ) {
+                            sb.append(" = ${settings.listFieldDefaultValue()}")
+                        }
+                    } else if (f.subtype == null) {
+                        if (f.name == "String" && settings.stringFieldDefaultValue()?.isNotEmpty() == true) {
+                            sb.append(" = ${settings.stringFieldDefaultValue()}")
+                        } else if (f.name == "bool" && settings.stringFieldDefaultValue()?.isNotEmpty() == true) {
+                            sb.append(" = ${settings.boolFieldDefaultValue()}")
+                        } else if (f.name == "int" && settings.stringFieldDefaultValue()?.isNotEmpty() == true) {
+                            sb.append(" = ${settings.intFieldDefaultValue()}")
+                        }
+                    }
+                }
+                sb.append(";")
                 return@map sb.toString()
             }.joinToString("\n")
         }
@@ -84,24 +119,30 @@ class ClassDefinition(private val name: String, private val privateFields: Boole
 //            "class $name {\n$_fieldList\n\n$_defaultPrivateConstructor\n\n$_gettersSetters\n\n$_jsonParseFunc\n\n$_jsonGenFunc\n}\n";
             ""
         } else {
-            """
-@JsonSerializable()
-class $name {
-
-$_fieldList
-  
-  ${name}();
-
-  factory ${name}.fromJson(Map<String, dynamic> json) => $${name}FromJson(json);
-
-  Map<String, dynamic> toJson() => $${name}ToJson(this);
-
-  @override
-  String toString() {
-    return jsonEncode(this);
-  }
-}
-            """.trimIndent();
+            val sb = StringBuffer()
+            sb.append("@JsonSerializable()")
+            sb.append("\n")
+            sb.append("class $name {")
+            sb.append("\n")
+            sb.append(_fieldList)
+            sb.append("\n\n")
+            sb.append("\t${name}();")
+            sb.append("\n\n")
+            sb.append("\tfactory ${name}.fromJson(Map<String, dynamic> json) => \$${name}FromJson(json);")
+            sb.append("\n\n")
+            sb.append("\tMap<String, dynamic> toJson() => \$${name}ToJson(this);")
+            sb.append("\n")
+            sb.append("\n")
+            sb.append("\t@override")
+            sb.append("\n")
+            sb.append("\tString toString() {")
+            sb.append("\n")
+            sb.append("\t\treturn jsonEncode(this);")
+            sb.append("\n")
+            sb.append("\t}")
+            sb.append("\n")
+            sb.append("}")
+            sb.toString()
         }
     }
 }
@@ -110,7 +151,7 @@ $_fieldList
 class Dependency(var name: String, var typeDef: TypeDefinition) {
     val className: String
         get() {
-            return camelCase(name)
+            return FieldUtils.toFieldTypeName(name)
         }
 
     override fun toString(): String {
@@ -126,7 +167,7 @@ class TypeDefinition(var name: String, var subtype: String? = null) {
     } else {
         isPrimitiveType("$name<${subtype!!.toUpperCaseFirstOne()}>")
     }
-    private val isPrimitiveList: Boolean
+    private val isPrimitiveList: Boolean = isPrimitive && name == "List"
 
     companion object {
         fun fromDynamic(obj: Any?): TypeDefinition {
@@ -143,10 +184,6 @@ class TypeDefinition(var name: String, var subtype: String? = null) {
             }
             return TypeDefinition(type)
         }
-    }
-
-    init {
-        isPrimitiveList = isPrimitive && name == "List"
     }
 
 

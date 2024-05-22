@@ -1,8 +1,8 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.ruiyu.ruiyu</id>
-    <name>FlutterJsonBeanFactory(Only Null Safety)</name>
-    <vendor email="157418979@qq.com" url="https://github.com/zhangruiyu/FlutterJsonBeanFactory">ruiyu-QQGroup(963752388)</vendor>
+    <name>FlutterJsonBeanFactory</name>
+    <vendor email="157418979@qq.com" url="https://github.com/zhangruiyu/FlutterJsonBeanFactory">欢迎大家进入交流q群(963752388),接flutter外包,万分感谢</vendor>
 
     <description><![CDATA[
      <br>Json to dart beans are provided, and dart files ending in entity are provided to generate dart bean factory for use.</br>
@@ -11,22 +11,6 @@
      <br>If you need generic conversions in your network requests, use the jsonconvert.fromjsonast method directly.</br>
      <br>If no helper files are generated, you can delete the .idea directory and restart your idea</br>
     ]]></description>
-    <change-notes><![CDATA[
-       <br>Multiple people collaborate to submit json_convert_content.dart file order</br>
-       <br>support sound null safety</br>
-       <br>support the flutter web</br>
-       <br>list generics are supported,List<DateTime> and DateTime toJson() can return String</br>
-       <br>smart to import packages</br>
-       <br>remove automatically regenerated</br>
-       <br>support such as @JSONField(name:"end_time",format: "yyyy/MM/dd hh:mm:ss",deserialize: true,serialize: false)</br>
-       <br>add format support for datetime</br>
-       <br>if you don't want to use the FlutterJsonBeanFactory in your project, you can close the plugin by adding flutter-json: enable: false to the pubspec.yaml file</br>
-       <br>shortcut key is changed to Alt + j</br>
-       <br>if the first jsonobject in the jsonarray is not perfect, the data will not be complete</br>
-       <br>rebuild will delete redundant files</br>
-       <br>version 3.1 has been released,Provide JsonConvert.dart,EntityFactory is deprecated</br>
-    ]]>
-    </change-notes>
     <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
          on how to target different products -->
     <depends>com.intellij.modules.json</depends>
@@ -53,16 +37,23 @@
                 description="Generate dart bean class File from JSON">
             <add-to-group group-id="NewGroup" anchor="before" relative-to-action="NewFile"/>
         </action>
+        <group id="FlutterBeanFactory.GenerateDartToJsonAndFromJsonFileAction" icon="/icons/action.png" popup="true" text="FlutterBeanFactory">
+            <add-to-group anchor="after" relative-to-action="Generate.Constructor.Dart" group-id="GenerateGroup"/>
+            <action id="Dart.Generate.ToFromJson.Action" icon="/icons/action.png"
+                    class="com.github.zhangruiyu.flutterjsonbeanfactory.action.class_body_generate.DartGenerateToFromJsonAction"
+                    text="ToJson And FromJson">
+            </action>
+        </group>
     </actions>
     <extensions defaultExtensionNs="com.intellij">
         <applicationService serviceImplementation="com.github.zhangruiyu.flutterjsonbeanfactory.setting.Settings"/>
         <projectConfigurable groupId="tools" displayName="FlutterJsonBeanFactory"
                              id="preferences.SingleFileExecutionConfigurable"
                              instance="com.github.zhangruiyu.flutterjsonbeanfactory.setting.SettingComponent"/>
-        <applicationService serviceImplementation="com.github.zhangruiyu.flutterjsonbeanfactory.services.MyApplicationService"/>
-        <projectService serviceImplementation="com.github.zhangruiyu.flutterjsonbeanfactory.services.MyProjectService"/>
     </extensions>
-
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="flutterJsonNotification" displayType="BALLOON"/>
+    </extensions>
     <applicationListeners>
         <listener class="com.github.zhangruiyu.flutterjsonbeanfactory.listeners.MyProjectManagerListener"
                   topic="com.intellij.openapi.project.ProjectManagerListener"/>
